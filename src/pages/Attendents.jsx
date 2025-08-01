@@ -131,7 +131,8 @@ const Attendance = () => {
   };
 
   // Fixed image upload function
-  const uploadImageToDrive = async (imageDataUrl) => {
+  // Fixed image upload function
+const uploadImageToDrive = async (imageDataUrl) => {
   try {
     setIsUploadingImage(true);
     
@@ -153,35 +154,30 @@ const Attendance = () => {
       body: formData,
     });
     
-    // Try to parse the response
-    let responseData;
-    try {
-      const responseText = await uploadResponse.text();
-      console.log("Upload response text:", responseText);
-      responseData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.log("Could not parse response as JSON, but upload may have succeeded");
-      // Even if we can't parse the response, the upload might have worked
-      // Return a fallback URL
-      throw new Error("Upload response could not be parsed");
+    // Check if the response is ok
+    if (!uploadResponse.ok) {
+      throw new Error(`HTTP error! status: ${uploadResponse.status}`);
     }
     
-    if (responseData && responseData.success) {
-      console.log("Image upload successful:", responseData);
-      // Use the viewUrl from the response for better compatibility
-      return responseData.viewUrl || responseData.fileUrl || responseData.downloadUrl;
+    // Parse the response
+    const result = await uploadResponse.json();
+    console.log("Upload response:", result);
+    
+    if (result.success) {
+      // Use the viewUrl from the response for better accessibility
+      const imageUrl = result.viewUrl || result.downloadUrl || result.fileUrl;
+      console.log("Image upload completed successfully:", fileName);
+      console.log("Image URL:", imageUrl);
+      return imageUrl;
     } else {
-      throw new Error(responseData?.error || "Upload failed");
+      throw new Error(result.error || "Upload failed");
     }
     
   } catch (error) {
     console.error("Image upload error:", error);
-    // For CORS issues, we can still try to construct a working URL
-    // based on the file naming pattern, but this is less reliable
-    const timestamp = Date.now();
-    const fallbackUrl = `https://drive.google.com/drive/folders/1Id-TCoFmo37mBj6Jjqxo2ag1TXFuMYlh`;
-    console.log("Using fallback approach due to error:", error.message);
-    throw error; // Re-throw to handle in the calling function
+    // Return empty string instead of throwing to allow attendance submission to continue
+    showToast("Image upload failed, but attendance will be recorded without image", "error");
+    return "";
   } finally {
     setIsUploadingImage(false);
   }
