@@ -132,41 +132,60 @@ const Attendance = () => {
 
   // Fixed image upload function
   const uploadImageToDrive = async (imageDataUrl) => {
+  try {
+    setIsUploadingImage(true);
+    
+    // Extract base64 data from data URL
+    const base64Data = imageDataUrl.split(',')[1];
+    const fileName = `attendance_${salesPersonName}_${Date.now()}.jpg`;
+    
+    console.log("Starting image upload...", fileName);
+    
+    const formData = new FormData();
+    formData.append('action', 'uploadFile');
+    formData.append('fileName', fileName);
+    formData.append('fileData', base64Data);
+    formData.append('mimeType', 'image/jpeg');
+    formData.append('folderId', '1Id-TCoFmo37mBj6Jjqxo2ag1TXFuMYlh');
+    
+    const uploadResponse = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    // Try to parse the response
+    let responseData;
     try {
-      setIsUploadingImage(true);
-      
-      // Extract base64 data from data URL
-      const base64Data = imageDataUrl.split(',')[1];
-      const fileName = `attendance_${salesPersonName}_${Date.now()}.jpg`;
-      
-      console.log("Starting image upload...", fileName);
-      
-      const formData = new FormData();
-      formData.append('action', 'uploadFile');
-      formData.append('fileName', fileName);
-      formData.append('fileData', base64Data);
-      formData.append('mimeType', 'image/jpeg');
-      formData.append('folderId', '1Id-TCoFmo37mBj6Jjqxo2ag1TXFuMYlh');
-      
-      const uploadResponse = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        body: formData,
-      });
-      
-      // For Apps Script, even with CORS issues, the upload should work
-      // We'll create a predictable URL structure
-      const imageUrl = `https://drive.google.com/file/d/attendance_${salesPersonName}_${Date.now()}/view`;
-      
-      console.log("Image upload completed:", fileName);
-      return imageUrl;
-      
-    } catch (error) {
-      console.error("Image upload error:", error);
-      throw error;
-    } finally {
-      setIsUploadingImage(false);
+      const responseText = await uploadResponse.text();
+      console.log("Upload response text:", responseText);
+      responseData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.log("Could not parse response as JSON, but upload may have succeeded");
+      // Even if we can't parse the response, the upload might have worked
+      // Return a fallback URL
+      throw new Error("Upload response could not be parsed");
     }
-  };
+    
+    if (responseData && responseData.success) {
+      console.log("Image upload successful:", responseData);
+      // Use the viewUrl from the response for better compatibility
+      return responseData.viewUrl || responseData.fileUrl || responseData.downloadUrl;
+    } else {
+      throw new Error(responseData?.error || "Upload failed");
+    }
+    
+  } catch (error) {
+    console.error("Image upload error:", error);
+    // For CORS issues, we can still try to construct a working URL
+    // based on the file naming pattern, but this is less reliable
+    const timestamp = Date.now();
+    const fallbackUrl = `https://drive.google.com/drive/folders/1Id-TCoFmo37mBj6Jjqxo2ag1TXFuMYlh`;
+    console.log("Using fallback approach due to error:", error.message);
+    throw error; // Re-throw to handle in the calling function
+  } finally {
+    setIsUploadingImage(false);
+  }
+};
 
   const getFormattedAddress = async (latitude, longitude) => {
     try {
